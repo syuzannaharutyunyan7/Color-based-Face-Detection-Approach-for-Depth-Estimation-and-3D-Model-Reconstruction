@@ -1,0 +1,128 @@
+import ij.IJ;
+import ij.ImagePlus;
+import ij.plugin.PlugIn;
+import ij.process.ImageProcessor;
+import java.io.File;
+
+public class SimpleHistogramAlgorithm implements PlugIn {
+
+    @Override
+    public void run(String arg) {
+        // Directories
+        String resultsDir = "/Users/syuzannaharutyunyan/Desktop/FEI Dataset 11/Output/Results/";
+        String masksDir = "/Users/syuzannaharutyunyan/Desktop/FEI Dataset 11/Output/Face Masks/";
+
+        // Create masks directory if it doesn't exist
+        new File(masksDir).mkdirs();
+
+        // List PNG files in Results folder
+        File[] files = new File(resultsDir).listFiles((dir, name) -> name.endsWith(".png"));
+        if (files == null || files.length == 0) {
+            IJ.error("No images found in Results folder");
+            return;
+        }
+
+        // Process each image
+        for (File file : files) {
+            ImagePlus imp = IJ.openImage(file.getAbsolutePath());
+            if (imp == null) continue;
+
+            ImageProcessor ip = imp.getProcessor();
+            int[] hist = ip.getHistogram();
+            if (hist == null || hist.length != 256) continue;
+
+            double logThreshold = 3.0;
+            int rangeStart = 40;
+            int rangeEnd = 80;
+            int N = 256;
+
+            // Step 1: Conditional logarithm
+            double[] logged = new double[N];
+            for (int i = 0; i < N; i++) {
+                logged[i] = (hist[i] > logThreshold) ? Math.log(hist[i]) : hist[i];
+            }
+
+            // Step 2: 5-point smoothing
+            double[] smooth = new double[N];
+            for (int i = 0; i < N; i++) {
+                if (i < 2 || i > N - 3) {
+                    smooth[i] = logged[i];
+                } else {
+                    smooth[i] = (logged[i - 2] + logged[i - 1] + logged[i] + logged[i + 1] + logged[i + 2]) / 5.0;
+                }
+            }
+
+            // Step 3: Linear regression
+            double sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+            int count = 0;
+            for (int i = 0; i < N; i++) {
+                if (smooth[i] != 0) {
+                    sumX += i;
+                    sumY += smooth[i];
+                    sumXY += i * smooth[i];
+                    sumXX += i * i;
+                    count++;
+                }
+            }
+            double a = (count * sumXY - sumX * sumY) / (count * sumXX - sumX * sumX);
+            double b = (sumY - a * sumX) / count;
+
+            // Step 4: Detrend
+            double[] detrended = new double[N];
+            for (int i = 0; i < N; i++) {
+                detrended[i] = smooth[i] - (a * i + b);
+            }
+
+            // Step 5: Find maximum in range
+            int maxIndex = rangeStart;
+            double maxValue = detrended[rangeStart];
+            for (int i = rangeStart + 1; i <= rangeEnd; i++) {
+                if (detrended[i] > maxValue) {
+                    maxValue = detrended[i];
+                    maxIndex = i;
+                }
+            }
+
+            // Step 6: Left intercept
+            double leftIntercept = maxIndex;
+            for (int i = maxIndex; i > 0; i--) {
+                if (detrended[i - 1] <= 0 && detrended[i] > 0) {
+                    leftIntercept = i - 1;
+                    break;
+                }
+            }
+
+            // Step 7: Right intercept
+            double rightIntercept = maxIndex;
+            for (int i = maxIndex; i < N - 1; i++) {
+                if (detrended[i] >= 0 && detrended[i + 1] < 0) {
+                    rightIntercept = i;
+                    break;
+                }
+            }
+
+            // Step 8: Threshold image based on intercepts
+            int width = ip.getWidth();
+            int height = ip.getHeight();
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    int pixel = ip.getPixel(x, y);
+                    if (pixel < leftIntercept || pixel > rightIntercept) {
+                        ip.putPixel(x, y, 255); // white
+                    } else {
+                        ip.putPixel(x, y, 0); // black
+                    }
+                }
+            }
+
+            imp.updateAndDraw();
+
+            // Step 9: Save mask
+            String outPath = masksDir + file.getName().replace(".png", "-mask.png");
+            IJ.save(imp, outPath);
+            IJ.log("Saved mask: " + outPath);
+        }
+
+        IJ.showMessage("All images processed and saved to Face Masks folder.");
+    }
+}
