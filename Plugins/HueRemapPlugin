@@ -1,0 +1,124 @@
+import ij.IJ;
+import ij.ImagePlus;
+import ij.plugin.PlugIn;
+import ij.process.ColorProcessor;
+import java.awt.Color;
+import java.io.File;
+
+public class HueRemapPlugin implements PlugIn {
+
+    static final double[] IDEAL_CDF = new double[]{
+        0.005091806257, 0.01093363384, 0.02033767379, 0.02725585778,
+        0.04614755755, 0.06951684947, 0.1190814714, 0.1773616977,
+        0.2365369116, 0.3292041275, 0.4281342352, 0.5637102088,
+        0.6849664505, 0.8252869149, 0.8921084119, 0.9625831948,
+        0.98006201, 0.9910872891, 0.9965159598, 0.9987493373,
+        0.9998544538, 1.0
+    };
+
+    @Override
+    public void run(String arg) {
+        String baseFolder = "/Users/syuzannaharutyunyan/Desktop/FEI Dataset 10/Faces 10/";
+        String outputFolder = baseFolder + "Output/Corrected1/";
+        File outDir = new File(outputFolder);
+        if (!outDir.exists()) outDir.mkdirs();
+
+        int start = 1;
+        int end = 200;
+
+        for (int i = start; i <= end; i++) {
+            String name = i + "-10 face";
+            String inPath = baseFolder + name + ".png";
+            IJ.log("Processing: " + name);
+
+            File f = new File(inPath);
+            if (!f.exists()) {
+                IJ.log("-> File missing: " + inPath);
+                continue;
+            }
+
+            ImagePlus imp = IJ.openImage(inPath);
+            if (imp == null) {
+                IJ.log("-> Cannot open: " + inPath);
+                continue;
+            }
+
+            int w = imp.getWidth();
+            int h = imp.getHeight();
+
+            // Compute hue histogram
+            int[] hueHist = new int[256];
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    int[] rgb = imp.getProcessor().getPixel(x, y, (int[]) null);
+                    float[] hsb = Color.RGBtoHSB(rgb[0], rgb[1], rgb[2], null);
+                    int hueIndex = Math.round(hsb[0] * 255f);
+                    hueHist[hueIndex]++;
+                }
+            }
+
+            int minHue = 3;
+            int maxHue = 24;
+
+            // Compute CDF of hues
+            double[] cdf = new double[maxHue - minHue + 1];
+            cdf[0] = hueHist[minHue];
+            for (int k = 1; k < cdf.length; k++) {
+                cdf[k] = cdf[k - 1] + hueHist[minHue + k];
+            }
+            for (int k = 0; k < cdf.length; k++) {
+                cdf[k] /= cdf[cdf.length - 1]; // normalize
+            }
+
+            // Map each hue to closest ideal CDF
+            int[] map = new int[256];
+            for (int k = 0; k < 256; k++) map[k] = k;
+
+            for (int hue = minHue; hue <= maxHue; hue++) {
+                double val = cdf[hue - minHue];
+                double bestDiff = Double.POSITIVE_INFINITY;
+                int bestIdx = 0;
+                for (int j = 0; j < IDEAL_CDF.length; j++) {
+                    double diff = Math.abs(IDEAL_CDF[j] - val);
+                    if (diff < bestDiff) {
+                        bestDiff = diff;
+                        bestIdx = j;
+                    }
+                }
+                int mappedHue = minHue + bestIdx;
+                map[hue] = mappedHue;
+
+                IJ.log(String.format(
+                    " hue %d: CDF=%.6f -> %d (ideal index=%d, value=%.6f)",
+                    hue, val, mappedHue, bestIdx, IDEAL_CDF[bestIdx]
+                ));
+            }
+
+            // Apply hue remapping to image
+            ColorProcessor out = new ColorProcessor(w, h);
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    int[] rgb = imp.getProcessor().getPixel(x, y, (int[]) null);
+                    float[] hsb = Color.RGBtoHSB(rgb[0], rgb[1], rgb[2], null);
+                    int hueIndex = Math.round(hsb[0] * 255f);
+                    if (hueIndex >= minHue && hueIndex <= maxHue)
+                        hueIndex = map[hueIndex];
+                    float hNew = hueIndex / 255f;
+                    int rgbNew = Color.HSBtoRGB(hNew, hsb[1], hsb[2]);
+                    out.set(x, y, rgbNew);
+                }
+            }
+
+            // Save remapped image
+            ImagePlus outImp = new ImagePlus(name + "-remapped", out);
+            String outPath = outputFolder + name + "-remapped.png";
+            IJ.saveAs(outImp, "PNG", outPath);
+
+            // Close images
+            imp.close();
+            outImp.close();
+        }
+
+        IJ.log("COMPLETED.");
+    }
+}
