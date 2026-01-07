@@ -1,0 +1,58 @@
+import ij.*;
+import ij.plugin.PlugIn;
+import ij.process.*;
+import java.io.File;
+
+public class SimpleImageAllMultiply implements PlugIn {
+
+    public void run(String arg) {
+        // Input folders
+        String folderS = "/Users/syuzannaharutyunyan/Desktop/FEI Dataset 10/Output/S/";
+        String folderV = "/Users/syuzannaharutyunyan/Desktop/FEI Dataset 10/Output/V/";
+
+        // Output folder
+        String outputFolder = "/Users/syuzannaharutyunyan/Desktop/FEI Dataset 10/Output/Results/";
+        new File(outputFolder).mkdirs();
+
+        // List all files in folderS
+        File[] filesS = new File(folderS).listFiles();
+        if (filesS == null) return;
+
+        for (File fileS : filesS) {
+            String nameS = fileS.getName();
+            String nameV = nameS.replace("-S.png", "-V.png");
+            File fileV = new File(folderV + nameV);
+
+            if (!fileV.exists()) continue; // skip if corresponding V file does not exist
+
+            // Open images
+            ImagePlus imp1 = IJ.openImage(fileS.getAbsolutePath());
+            ImagePlus imp2 = IJ.openImage(fileV.getAbsolutePath());
+
+            // Determine minimum width and height
+            int width = Math.min(imp1.getWidth(), imp2.getWidth());
+            int height = Math.min(imp1.getHeight(), imp2.getHeight());
+
+            // Get ByteProcessors
+            ByteProcessor ip1 = (ByteProcessor) imp1.getProcessor();
+            ByteProcessor ip2 = (ByteProcessor) imp2.getProcessor();
+
+            // Create result image
+            ImageProcessor result = new ByteProcessor(width, height);
+
+            // Multiply pixel values
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    int val = (ip1.getPixel(x, y) * ip2.getPixel(x, y)) / 255;
+                    result.putPixel(x, y, val);
+                }
+            }
+
+            // Save result
+            String outputName = nameS.replace("-S.png", "-Result.png");
+            IJ.save(new ImagePlus("Result", result), outputFolder + outputName);
+        }
+
+        IJ.showMessage("Done!");
+    }
+}
