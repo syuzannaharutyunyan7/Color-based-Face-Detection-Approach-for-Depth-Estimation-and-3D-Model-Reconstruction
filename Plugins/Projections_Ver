@@ -1,0 +1,54 @@
+import ij.ImagePlus;
+import ij.IJ;
+import ij.process.ImageProcessor;
+import ij.process.ByteProcessor;
+import ij.plugin.filter.PlugInFilter;
+
+public class ProjectionsVer implements PlugInFilter {
+
+    ImagePlus inputImage;
+
+    @Override
+    public int setup(String args, ImagePlus im) {
+        inputImage = im;
+        return DOES_8G; // works on 8-bit grayscale images
+    }
+
+    @Override
+    public void run(ImageProcessor ip) {
+        String inputTitle = inputImage.getShortTitle();
+        int width = ip.getWidth();
+        int height = ip.getHeight();
+
+        // Compute vertical projection
+        int[] pVer = new int[width];
+        for (int row = 0; row < height; row++) {
+            for (int col = 0; col < width; col++) {
+                if (ip.getPixel(col, row) == 0) { // count black pixels
+                    pVer[col]++;
+                }
+            }
+        }
+
+        int maxVer = getMax(pVer) + 1;
+        ImageProcessor ver = new ByteProcessor(width, maxVer);
+
+        // Draw vertical projection
+        for (int col = 0; col < width; col++) {
+            for (int row = pVer[col]; row < maxVer; row++) {
+                ver.putPixel(col, row, 255); // white pixel
+            }
+        }
+
+        new ImagePlus("VerProj " + inputTitle, ver).show();
+    }
+
+    // Helper method to get maximum value in array
+    private static int getMax(int[] arr) {
+        int max = arr[0];
+        for (int val : arr) {
+            if (val > max) max = val;
+        }
+        return max;
+    }
+}
