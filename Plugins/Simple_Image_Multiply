@@ -1,0 +1,35 @@
+import ij.*;
+import ij.plugin.PlugIn;
+import ij.process.ImageProcessor;
+import ij.process.ByteProcessor;
+
+public class SimpleImageMultiply implements PlugIn {
+
+    public void run(String arg) {
+        // Open two images
+        ImagePlus imp1 = IJ.openImage(); // first image
+        ImagePlus imp2 = IJ.openImage(); // second image
+
+        // Determine the minimum width and height
+        int width = Math.min(imp1.getWidth(), imp2.getWidth());
+        int height = Math.min(imp1.getHeight(), imp2.getHeight());
+
+        // Get ByteProcessors for both images
+        ByteProcessor ip1 = (ByteProcessor) imp1.getProcessor();
+        ByteProcessor ip2 = (ByteProcessor) imp2.getProcessor();
+
+        // Create result processor
+        ImageProcessor resultIP = new ByteProcessor(width, height);
+
+        // Multiply corresponding pixels
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int value = ip1.getPixel(x, y) * ip2.getPixel(x, y) / 255;
+                resultIP.putPixel(x, y, value);
+            }
+        }
+
+        // Display the result
+        new ImagePlus("Multiplication Result", resultIP).show();
+    }
+}
