@@ -1,0 +1,52 @@
+// Open image sequence
+run("Image Sequence...", "sort");
+original = getImageID();
+
+// Duplicate for processing
+run("Duplicate...", "title=SEG");
+selectWindow("SEG");
+
+// Apply binary layer extraction
+run("All Layers Black");
+run("Make Binary", "setOption('BlackBackground', true)");
+
+// Morphological operations
+run("Erode", "stack");
+run("Erode", "stack");
+run("Median...", "radius=2 stack");
+run("Dilate", "stack");
+run("Dilate", "stack");
+
+// Analyze particles
+run("Analyze Particles...", 
+    "dir=/Users/syuzannaharutyunyan/Desktop/Experiment/ method=Default background=Default calculate size=0-Infinity show=Nothing add");
+
+// Get number of ROIs
+n = roiManager("count");
+
+if (n > 0) {
+    maxArea = 0;
+    maxIndex = 0;
+
+    // Find the largest ROI
+    for (i = 0; i < n; i++) {
+        A = getResult("Area", i);
+        if (A > maxArea) {
+            maxArea = A;
+            maxIndex = i;
+        }
+    }
+
+    // Select the original image and apply inverse fill
+    selectImage(original);
+    roiManager("select", maxIndex);
+    run("Make Inverse");
+    setForegroundColor(255, 255, 255);
+    run("Fill");
+    run("Select None");
+}
+
+// Clean up
+selectWindow("SEG");
+close();
+roiManager("reset");
