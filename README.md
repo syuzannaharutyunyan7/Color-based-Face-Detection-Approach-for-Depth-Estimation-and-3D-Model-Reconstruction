@@ -19,9 +19,7 @@ This research provides an **automated approach that isolates facial regions unde
 ## Methodology
 
 ### Face-specific Colors in RGB
-The purpose of this section is to determine a specific range for Hue that is optimal for skin region detection, based on *FLID Color Based Iterative Face Detection by Khachatryan (2010)*.  
-
-- Collect pixels from facial regions and group them based on their Green (G) value (256 groups).  
+- Pixels are extracted from facial regions and grouped based on their Green (G) values (256 groups).  
 - Compute **M = (R + B)/2** for each pixel.  
 - Apply **quadratic regression curves** to identify facial-color intervals.  
 - Pixels are assigned colors based on which interval they satisfy:  
@@ -35,55 +33,54 @@ The purpose of this section is to determine a specific range for Hue that is opt
 ---
 
 ### Face-specific Colors in HSV
-To address RGB limitations, the approach uses the **HSV color space**:  
-
-- The desirable **Hue range for skin color** is [3, 24].  
-- Each image is separated into **RGB (Red, Green, Blue)** and **HSV (Hue, Saturation, Value/Brightness)** channels.  
-- The combination of **Saturation and Value/Brightness (SV)** provides a measure that better distinguishes skin tones across images and reduces the impact of illumination variations.
+- Convert RGB images to **HSV (Hue, Saturation, Value/Brightness)**.  
+- Desired Hue range for skin color: [3, 24].  
+- Multiply Saturation and Value channels (SV composite) to better distinguish skin from background.  
 
 ---
 
 ### Automated SV Feature Generation
-- The ImageJ plugin reads **Saturation and Value channels** and multiplies them for each pixel.  
-- The resulting **SV composite feature** is normalized and highlights facial regions in grayscale.
+- ImageJ plugin reads **Saturation and Value channels**.  
+- Multiplies them for each pixel → **SV composite feature**.  
+- Normalized SV highlights facial regions in grayscale.
 
 ---
 
 ### Histogram-Based Analysis of SV
-- Compute **histogram of SV values** with 256 bins.  
-- Apply **conditional logarithmic transformation** and **five-point moving average** to smooth the histogram.  
-- Apply **linear regression to remove global trends**.  
-- Identify the **dominant peak in bins 40–80** to determine lower and upper SV bounds for skin pixels.
+- Compute histogram of SV values with 256 bins.  
+- Apply **conditional logarithmic transformation** and **five-point moving average** to smooth histogram.  
+- Linear regression removes global trends.  
+- Identify **dominant peak in bins 40–80** to determine lower and upper SV bounds for facial pixels.
 
 ---
 
 ### Face Mask Generation
 - Pixels outside SV bounds → set to white (non-face).  
 - Pixels within SV bounds → potential facial regions.  
-- Produces **binary masks leaving only facial regions**.  
+- Produces **binary face masks** leaving only facial regions.  
 
 ---
 
 ### Extraction of Facial Regions
 - Combine **Hue and SV filtering** to retain pixels within thresholds.  
 - Non-facial regions are set to white.  
-- Morphological filtering (**erosion, median filtering, dilation**) removes artifacts and smooths edges.  
-- Particle analysis identifies the **largest connected region** (assumed to be the face).  
-- Apply the mask to the original image → **face-only images**.
+- Apply morphological filtering (**erosion, median filtering, dilation**) to remove artifacts and smooth edges.  
+- Particle analysis identifies **largest connected region** (assumed to be the face).  
+- Apply mask to original image → **face-only images**.
 
 ---
 
 ### Hue Remapping
 - Compute **Hue histogram** of face-only images.  
 - Calculate **CDF (cumulative distribution function)**.  
-- Map Hue values to an **ideal reference CDF** to standardize skin-tone colors across images.  
+- Map Hue values to **reference CDF** for standardized skin-tone across dataset.  
 
 ---
 
 ### Depth Estimation and 3D Reconstruction
-- Use **vertical projection patterns** from binary layers.  
-- Identify **maxima and minima corresponding to key facial structures**.  
-- Compute ellipsoids representing the **3D facial shape**.
+- Use **vertical projections** from binary layers.  
+- Identify maxima and minima corresponding to key facial structures.  
+- Compute ellipsoids representing **3D facial shape**.  
 
 ---
 
@@ -94,11 +91,74 @@ To address RGB limitations, the approach uses the **HSV color space**:
 
 ---
 
-## Results
-- 86.5% of images successfully processed.  
-- RGB-only methods failed under varying illumination and background conditions.  
-- Hue + SV filtering produced **clean and precise facial masks**.  
-- Hue remapping improved **color consistency across the dataset**.  
+## Testing Results
+
+### Face Masks
+Working and non-working face masks are presented, along with the percentage of correctly detected faces and analysis of why some images are not extracted accurately.
+
+#### The results of the *-11 facial dataset after filtering process
+**Face Masks of *-11 dataset**
+
+| Images               | Clothes remaining after face mask | Hair remaining after face mask | Facial pixel loss |
+|---------------------|---------------------------------|-------------------------------|-----------------|
+| Successful images    | 190                             | 181                           | 197             |
+| Unsuccessful images  | 10                              | 19                            | 3               |
+
+Some images show loss of facial pixels, others have hair colors similar to skin tone, and some still have clothing remnants. **86.5%** of images were processed successfully.
+
+---
+
+#### The results of the *-01 facial dataset after filtering process
+**Face Masks of *-01 dataset**
+
+| Images               | Clothes remaining after face mask | Hair remaining after face mask | Facial pixel loss |
+|---------------------|---------------------------------|-------------------------------|-----------------|
+| Successful images    | 191                             | 183                           | 193             |
+| Unsuccessful images  | 9                               | 17                            | 7               |
+
+Some images show loss of facial pixels, hair colors similar to skin tone, or clothing remnants. **86%** of images were processed successfully.
+
+---
+
+#### The results of the *-10 facial dataset after filtering process
+**Face Masks of *-10 dataset**
+
+| Images               | Clothes remaining after face mask | Hair remaining after face mask | Facial pixel loss |
+|---------------------|---------------------------------|-------------------------------|-----------------|
+| Successful images    | 192                             | 177                           | 195             |
+| Unsuccessful images  | 8                               | 23                            | 5               |
+
+Some images show loss of facial pixels, hair colors similar to skin tone, or clothing remnants. **84%** of images were processed successfully.
+
+---
+
+### Histogram Matching and Binary Layers
+- Histogram matching standardizes pixel values across datasets.  
+- Binary Layers plugin generates 4 binary layers based on RGB intervals for depth analysis.  
+- **Vertical projection analysis** identifies maxima and minima for facial structures.  
+- After histogram matching, facial features like nose, mouth, ears, and eyes become clearly visible.
+
+---
+
+### 3D Face Depth Reconstruction
+- Depth map calculated using **binary layer projections**.  
+- Parameters for ellipsoid construction:
+
+| Parameter | Calculation / Description                     | Binary Layer |
+|-----------|-----------------------------------------------|--------------|
+| X1        | x coordinate of left max                      | Layer 0      |
+| X2        | x coordinate of max                            | Layer 2      |
+| a         | X2 − X1                                       | -            |
+| D1        | x coordinate of middle max                     | Layer 0      |
+| D2        | x coordinate of middle max                     | Layer 1      |
+| D3        | x coordinate of min after left max             | Layer 2      |
+| D4        | max x coordinate                               | Layer 2      |
+| D5        | x coordinate of right max                      | Layer 2      |
+| b         | max(D1,D2) − D3                               | -            |
+| c         | D4 − D5                                       | -            |
+
+- Construct ellipsoid with semiaxes `a` and `b`.  
+- Generate 3D depth map for each face.
 
 ---
 
@@ -106,10 +166,10 @@ To address RGB limitations, the approach uses the **HSV color space**:
 - **ImageJ**: Main image-processing platform.  
 - **Custom Java Plugins**:  
   - `AllLayersBinary` → RGB-based pixel evaluation  
-  - `FaceExtractorFromMasks` → Final facial region extraction  
+  - `FaceExtractorFromMasks` → Facial region extraction  
   - `HueRemapPlugin` → Hue normalization  
   - `ProjectionsVer` → Vertical projection curves for depth estimation  
-- **Macros**: Automate extraction of RGB and HSV channels, SV computation, and morphological filtering.  
+- **Macros**: Automate extraction of RGB and HSV channels, SV computation, and morphological filtering.
 
 ---
 
@@ -126,4 +186,7 @@ To address RGB limitations, the approach uses the **HSV color space**:
 ---
 
 ## Conclusion
-By relying on **color-space analysis, histogram normalization, and morphological filtering**, this approach efficiently extracts facial regions and produces clean datasets suitable for **depth estimation and 3D reconstruction**, without requiring heavy deep learning models.
+By relying on **color-space analysis, histogram normalization, and morphological filtering**, this approach efficiently extracts facial regions and produces clean datasets suitable for **depth estimation and 3D reconstruction**, without requiring heavy deep learning models.  
+
+Testing on the FEI Face Database showed **~85% success** for clean extraction. Future work includes applying the algorithm to rotated images and automating ellipsoid generation for all faces.
+
