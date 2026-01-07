@@ -1,0 +1,51 @@
+import ij.ImagePlus;
+import ij.process.ImageProcessor;
+import ij.plugin.filter.PlugInFilter;
+
+public class AllLayersBinary implements PlugInFilter {
+
+    public double curve(int index, int x) {
+        double[][] quad = {
+            { -9.0, 1.0, -0.0009 },
+            { -4.0146, 1.1917, -0.0011 },
+            { 4.0264, 1.2262, -0.0013 },
+            { 12.067, 1.2608, -0.0026 },
+            { 14.8, 1.5713, 0.0 }
+        };
+        return quad[index][0] + quad[index][1] * x + quad[index][2] * x * x;
+    }
+
+    public int setup(String args, ImagePlus im) {
+        return DOES_RGB + DOES_STACKS;
+    }
+
+    public void run(ImageProcessor inputIP) {
+        int width = inputIP.getWidth();
+        int height = inputIP.getHeight();
+
+        for (int row = 0; row < height; row++) {
+            for (int col = 0; col < width; col++) {
+                int pixel = inputIP.getPixel(col, row);
+
+                int r = (pixel & 0xff0000) >> 16;
+                int g = (pixel & 0x00ff00) >> 8;
+                int b = (pixel & 0x0000ff);
+
+                double rb = (r + b) / 2.0;
+                boolean matched = false;
+
+                if (b < g && g < r) {
+                    if (rb >= curve(0, g) && rb <= curve(1, g)) matched = true;
+                    else if (rb >= curve(1, g) && rb <= curve(2, g)) matched = true;
+                    else if (rb >= curve(2, g) && rb <= curve(3, g)) matched = true;
+                    else if (rb >= curve(3, g) && rb <= curve(4, g)) matched = true;
+                }
+
+                if (matched)
+                    inputIP.putPixel(col, row, 0x000000); // BLACK
+                else
+                    inputIP.putPixel(col, row, 0xFFFFFF); // WHITE
+            }
+        }
+    }
+}
