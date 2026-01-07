@@ -1,0 +1,52 @@
+// Set input and output directories
+inputDir = "/Users/syuzannaharutyunyan/Desktop/FEI Dataset/";
+outputDir = inputDir + "Output/01/";
+
+// Create output directories
+File.makeDirectory(outputDir);
+File.makeDirectory(outputDir + "R");
+File.makeDirectory(outputDir + "G");
+File.makeDirectory(outputDir + "B");
+File.makeDirectory(outputDir + "H");
+File.makeDirectory(outputDir + "S");
+File.makeDirectory(outputDir + "V");
+
+// Process 200 images
+for (i = 1; i <= 200; i++) {
+    filename = "" + i + "-01.jpg";
+    print("Processing: " + filename);
+
+    // Open image
+    open(inputDir + filename);
+    imageTitle = getTitle();
+
+    // Process RGB channels
+    run("Duplicate...", "title=rgb_temp");
+    selectWindow("rgb_temp");
+    run("RGB Stack");
+    saveAs("PNG", outputDir + "R/" + i + "-01-R.png");
+    run("Next Slice [>]");
+    saveAs("PNG", outputDir + "G/" + i + "-01-G.png");
+    run("Next Slice [>]");
+    saveAs("PNG", outputDir + "B/" + i + "-01-B.png");
+    close();
+
+    // Process HSB channels
+    selectWindow(imageTitle);
+    run("Duplicate...", "title=hsb_temp");
+    selectWindow("hsb_temp");
+    run("HSB Stack");
+    saveAs("PNG", outputDir + "H/" + i + "-01-H.png");
+    run("Next Slice [>]");
+    saveAs("PNG", outputDir + "S/" + i + "-01-S.png");
+    run("Next Slice [>]");
+    saveAs("PNG", outputDir + "V/" + i + "-01-V.png");
+    close();
+
+    // Close original image
+    selectWindow(imageTitle);
+    close();
+}
+
+print("All 200 images processed successfully!");
+print("Results saved in subfolders: R, G, B, H, S, V inside " + outputDir);
